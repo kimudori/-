@@ -352,8 +352,8 @@ export default function App() {
               <span>{content.hero_title}</span>
             </div>
             <h1 className="text-6xl lg:text-8xl font-bold tracking-tighter leading-[0.9] mb-8">
-              {content.hero_name.split(' ')[0]}<br />
-              <span className="text-zinc-300">{content.hero_name.split(' ').slice(1).join(' ')}</span>
+              {(content.hero_name || "Kim Yeo-eun").split(' ')[0]}<br />
+              <span className="text-zinc-300">{(content.hero_name || "Kim Yeo-eun").split(' ').slice(1).join(' ')}</span>
             </h1>
             <p className="text-xl text-zinc-500 max-w-md mb-10 leading-relaxed">
               {content.hero_intro}
