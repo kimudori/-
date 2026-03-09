@@ -182,12 +182,29 @@ db.prepare("UPDATE content SET value = ? WHERE key = 'certs_json'").run(newCerts
 
 async function startServer() {
   const app = express();
+  console.log("--- Server Starting ---");
+  console.log("NODE_ENV:", process.env.NODE_ENV);
   console.log("Current working directory:", process.cwd());
-  console.log("Files in root:", fs.readdirSync(process.cwd()));
+  
+  try {
+    console.log("Files in root:", fs.readdirSync(process.cwd()));
+  } catch (e) {
+    console.error("Error listing root directory:", e);
+  }
+
   app.use(express.json({ limit: "50mb" }));
   app.use(express.urlencoded({ limit: "50mb", extended: true }));
 
   // API Routes
+  app.get("/api/health", (req, res) => {
+    try {
+      db.prepare("SELECT 1").get();
+      res.json({ status: "ok", db: "connected" });
+    } catch (e: any) {
+      res.status(500).json({ status: "error", message: e.message });
+    }
+  });
+
   app.get("/api/content", (req, res) => {
     const rows = db.prepare("SELECT * FROM content").all();
     const content = rows.reduce((acc, row: any) => {
@@ -253,6 +270,12 @@ async function startServer() {
     app.use(express.static(distPath));
     
     app.get("*", (req, res) => {
+      // Don't serve index.html for files that look like assets (have extensions)
+      if (req.path.includes(".") && !req.path.endsWith(".html")) {
+        console.log(`Asset not found: ${req.path}`);
+        return res.status(404).send("Not found");
+      }
+
       res.sendFile(indexPath, (err) => {
         if (err) {
           console.error("Error sending index.html from dist:", err);

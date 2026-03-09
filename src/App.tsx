@@ -1,4 +1,21 @@
 import React, { useState, useEffect } from 'react';
+
+// Global error handler for debugging
+if (typeof window !== 'undefined') {
+  window.onerror = (msg, url, line, col, error) => {
+    const root = document.getElementById('root');
+    if (root) {
+      root.innerHTML = `<div style="padding: 20px; color: red; font-family: monospace; background: #fff; position: fixed; inset: 0; z-index: 9999; overflow: auto;">
+        <h1 style="font-size: 20px; margin-bottom: 10px;">Client-side Error Detected</h1>
+        <p><strong>Message:</strong> ${msg}</p>
+        <p><strong>Location:</strong> ${url}:${line}:${col}</p>
+        <pre style="background: #f5f5f5; padding: 10px; border-radius: 4px; margin-top: 10px;">${error?.stack || 'No stack trace available'}</pre>
+        <p style="margin-top: 20px; font-size: 12px; color: #666;">This error was caught by the global error handler. Please report this to the developer.</p>
+      </div>`;
+    }
+  };
+}
+
 import { 
   User, 
   Ship, 
@@ -255,6 +272,13 @@ export default function App() {
   useEffect(() => {
     const loadContent = async () => {
       try {
+        // Check health first
+        const healthRes = await fetch('/api/health');
+        if (!healthRes.ok) {
+          const healthData = await healthRes.json();
+          throw new Error(`Server health check failed: ${healthData.message}`);
+        }
+
         const res = await fetch('/api/content');
         if (!res.ok) throw new Error('Failed to fetch content');
         const data = await res.json();
