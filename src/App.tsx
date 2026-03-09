@@ -97,7 +97,7 @@ const Navbar = ({ onAdminClick }: { onAdminClick: () => void }) => {
         <div className="text-xl font-bold tracking-tighter text-zinc-900">
           KIM <span className="text-zinc-400 font-light">YEO-EUN</span>
         </div>
-        <div className="hidden md:flex items-center space-gap-8 text-sm font-medium text-zinc-600">
+        <div className="hidden md:flex items-center gap-8 text-sm font-medium text-zinc-600">
           <a href="#about" className="hover:text-zinc-900 transition-colors">About</a>
           <a href="#experience" className="hover:text-zinc-900 transition-colors ml-8">Experience</a>
           <a href="#skills" className="hover:text-zinc-900 transition-colors ml-8">Skills</a>
