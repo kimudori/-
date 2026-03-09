@@ -1,4 +1,5 @@
 import express from "express";
+import fs from "fs";
 import { createServer as createViteServer } from "vite";
 import Database from "better-sqlite3";
 import path from "path";
@@ -181,6 +182,8 @@ db.prepare("UPDATE content SET value = ? WHERE key = 'certs_json'").run(newCerts
 
 async function startServer() {
   const app = express();
+  console.log("Current working directory:", process.cwd());
+  console.log("Files in root:", fs.readdirSync(process.cwd()));
   app.use(express.json({ limit: "50mb" }));
   app.use(express.urlencoded({ limit: "50mb", extended: true }));
 
@@ -230,8 +233,12 @@ async function startServer() {
   });
 
   // Vite middleware
-  if (process.env.NODE_ENV !== "production") {
-    console.log("Running in development mode");
+  const distPath = path.resolve(process.cwd(), "dist");
+  const indexPath = path.resolve(distPath, "index.html");
+  const indexExists = fs.existsSync(indexPath);
+
+  if (process.env.NODE_ENV !== "production" || !indexExists) {
+    console.log(process.env.NODE_ENV !== "production" ? "Running in development mode" : "Running in production mode but index.html is missing, falling back to Vite middleware");
     const vite = await createViteServer({
       server: { middlewareMode: true },
       appType: "spa",
@@ -239,11 +246,36 @@ async function startServer() {
     app.use(vite.middlewares);
   } else {
     console.log("Running in production mode");
-    const distPath = path.join(__dirname, "dist");
-    console.log("Serving static files from:", distPath);
+    console.log("Current working directory:", process.cwd());
+    console.log("Dist path:", distPath);
+    console.log("Index path:", indexPath);
+
     app.use(express.static(distPath));
+    
     app.get("*", (req, res) => {
-      res.sendFile(path.join(distPath, "index.html"));
+      res.sendFile(indexPath, (err) => {
+        if (err) {
+          console.error("Error sending index.html from dist:", err);
+          const rootIndexPath = path.resolve(process.cwd(), "index.html");
+          console.log("Trying root index.html at:", rootIndexPath);
+          res.sendFile(rootIndexPath, (err2) => {
+            if (err2) {
+              console.error("Error sending index.html from root:", err2);
+              res.status(500).send(`
+                <html>
+                  <body>
+                    <h1>Server Error</h1>
+                    <p>Could not find index.html at: ${indexPath} or ${rootIndexPath}</p>
+                    <p>Current directory: ${process.cwd()}</p>
+                    <p>Files in root: ${fs.readdirSync(process.cwd()).join(", ")}</p>
+                    <p>Please check if 'npm run build' was successful.</p>
+                  </body>
+                </html>
+              `);
+            }
+          });
+        }
+      });
     });
   }
 

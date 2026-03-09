@@ -18,7 +18,9 @@ import {
   LogOut,
   BookOpen
 } from 'lucide-react';
-import { motion, AnimatePresence } from 'motion/react';
+import { motion, AnimatePresence } from 'framer-motion';
+
+console.log("App.tsx loaded");
 
 // --- Types ---
 interface Experience {
@@ -225,6 +227,7 @@ const AdminModal = ({ isOpen, onClose, content, onUpdate, onLoginSuccess, onLogo
 };
 
 export default function App() {
+  console.log("App component rendering");
   const [content, setContent] = useState<PortfolioContent>({
     hero_name: "Kim Yeo-eun",
     hero_title: "Field Service Engineer Candidate",
