@@ -222,7 +222,7 @@ const AdminModal = ({ isOpen, onClose, content, onUpdate, onLoginSuccess, onLogo
                 </label>
               </div>
 
-              {Object.entries(content).map(([key, value]) => {
+              {content && Object.entries(content).map(([key, value]) => {
                 if (key === 'profile_image' || key === 'resume_file') return null;
                 return (
                   <div key={key} className="space-y-2">
@@ -254,7 +254,7 @@ export default function App() {
     about_why: "장비를 직접 운용하며 설치 상태와 작동 원리에 관심이 생겼으며, 단순 사용자가 아닌 장비 이해와 문제 해결 역할로 확장하고자 합니다.",
     about_strengths: "현장 환경 적응력, 장비 운용 경험, 기술 문서 이해",
     experience_json: "[]",
-    skills_json: "{}",
+    skills_json: JSON.stringify({ marine: [], engineering: [], tools: [] }),
     cases_json: "[]",
     activities_json: "[]",
     education_json: "[]",
@@ -282,7 +282,9 @@ export default function App() {
         const res = await fetch('/api/content');
         if (!res.ok) throw new Error('Failed to fetch content');
         const data = await res.json();
-        setContent(prev => ({ ...prev, ...data }));
+        if (data && typeof data === 'object') {
+          setContent(prev => ({ ...prev, ...data }));
+        }
       } catch (err) {
         console.error('Error loading content:', err);
       } finally {
@@ -304,15 +306,20 @@ export default function App() {
   }, []);
 
   const handleUpdate = async (key: keyof PortfolioContent, value: string) => {
-    if (!content) return;
-    const newContent = { ...content, [key]: value };
-    setContent(newContent);
+    setContent(prev => ({ ...prev, [key]: value }));
     
-    await fetch('/api/content/update', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ token: 'dummy-token-0928', key, value })
-    });
+    try {
+      const res = await fetch('/api/content/update', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ token: 'dummy-token-0928', key, value })
+      });
+      if (!res.ok) {
+        console.error('Failed to update content on server');
+      }
+    } catch (err) {
+      console.error('Error updating content:', err);
+    }
   };
 
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>, key: 'profile_image' | 'resume_file') => {
@@ -333,24 +340,29 @@ export default function App() {
   if (isLoading) return <div className="min-h-screen flex items-center justify-center font-mono text-zinc-400">LOADING...</div>;
 
   const safeParse = (jsonString: string | undefined | null, fallback: any) => {
-    if (!jsonString) return fallback;
+    if (!jsonString || jsonString === 'undefined' || jsonString === 'null') return fallback;
     try {
       // Handle potential trailing commas by replacing ,] with ] and ,} with }
       const cleaned = jsonString.replace(/,\s*\]/g, ']').replace(/,\s*\}/g, '}');
-      return JSON.parse(cleaned);
+      const parsed = JSON.parse(cleaned);
+      if (Array.isArray(fallback) && !Array.isArray(parsed)) return fallback;
+      if (typeof fallback === 'object' && fallback !== null && (typeof parsed !== 'object' || parsed === null)) return fallback;
+      return parsed || fallback;
     } catch (e) {
       console.error("JSON Parse Error:", e, jsonString);
       return fallback;
     }
   };
 
-  const experiences: Experience[] = safeParse(content.experience_json, []);
-  const skills: SkillSet = safeParse(content.skills_json, { marine: [], engineering: [], tools: [] });
-  const cases: Case[] = safeParse(content.cases_json, []);
-  const activities: Activity[] = safeParse(content.activities_json, []);
-  const education: Education[] = safeParse(content.education_json, []);
-  const certs: string[] = safeParse(content.certs_json, []);
-  const learningLogs: LearningLog[] = safeParse(content.learning_log_json, []);
+  const experiences: Experience[] = safeParse(content?.experience_json, []);
+  const skills: SkillSet = safeParse(content?.skills_json, { marine: [], engineering: [], tools: [] });
+  const cases: Case[] = safeParse(content?.cases_json, []);
+  const activities: Activity[] = safeParse(content?.activities_json, []);
+  const education: Education[] = safeParse(content?.education_json, []);
+  const certs: string[] = safeParse(content?.certs_json, []);
+  const learningLogs: LearningLog[] = safeParse(content?.learning_log_json, []);
+
+  if (!content) return <div className="min-h-screen flex items-center justify-center font-mono text-zinc-400">INITIALIZING...</div>;
 
   return (
     <div className="min-h-screen bg-[#FDFDFD] text-zinc-900 selection:bg-zinc-900 selection:text-white font-sans">
@@ -449,48 +461,50 @@ export default function App() {
         <div className="max-w-7xl mx-auto px-6">
           <SectionTitle title="Professional Experience" subtitle="Field History" />
           <div className="space-y-24">
-            {experiences.map((exp, idx) => (
-              <div key={idx} className="grid lg:grid-cols-12 gap-12">
-                <div className="lg:col-span-4">
-                  <span className="text-4xl font-bold text-zinc-200 mb-4 block">0{idx + 1}</span>
-                  <h3 className="text-2xl font-bold mb-1">{exp.company}</h3>
-                  <p className="text-zinc-500 font-medium mb-4">{exp.role}</p>
-                  <span className="inline-block px-3 py-1 bg-zinc-200 rounded text-xs font-bold text-zinc-600">
-                    {exp.period}
-                  </span>
-                </div>
-                <div className="lg:col-span-8 grid md:grid-cols-2 gap-8">
-                  <div className="space-y-6">
-                    <div>
-                      <h4 className="text-xs font-bold text-zinc-400 uppercase mb-3">Key Responsibilities</h4>
-                      <ul className="space-y-2">
-                        {exp.tasks.map((task, i) => (
-                          <li key={i} className="text-zinc-600 flex items-start gap-2">
-                            <div className="w-1.5 h-1.5 rounded-full bg-zinc-300 mt-2 shrink-0"></div>
-                            {task}
-                          </li>
-                        ))}
-                      </ul>
-                    </div>
-                    <div>
-                      <h4 className="text-xs font-bold text-zinc-400 uppercase mb-3">Technical Exposure</h4>
-                      <div className="flex flex-wrap gap-2">
-                        {exp.tech.map((t, i) => (
-                          <span key={i} className="text-xs font-medium px-2 py-1 bg-white border border-zinc-200 rounded">
-                            {t}
-                          </span>
-                        ))}
+            {experiences?.map((exp, idx) => (
+              exp && (
+                <div key={idx} className="grid lg:grid-cols-12 gap-12">
+                  <div className="lg:col-span-4">
+                    <span className="text-4xl font-bold text-zinc-200 mb-4 block">0{idx + 1}</span>
+                    <h3 className="text-2xl font-bold mb-1">{exp.company}</h3>
+                    <p className="text-zinc-500 font-medium mb-4">{exp.role}</p>
+                    <span className="inline-block px-3 py-1 bg-zinc-200 rounded text-xs font-bold text-zinc-600">
+                      {exp.period}
+                    </span>
+                  </div>
+                  <div className="lg:col-span-8 grid md:grid-cols-2 gap-8">
+                    <div className="space-y-6">
+                      <div>
+                        <h4 className="text-xs font-bold text-zinc-400 uppercase mb-3">Key Responsibilities</h4>
+                        <ul className="space-y-2">
+                          {exp.tasks?.map((task, i) => (
+                            <li key={i} className="text-zinc-600 flex items-start gap-2">
+                              <div className="w-1.5 h-1.5 rounded-full bg-zinc-300 mt-2 shrink-0"></div>
+                              {task}
+                            </li>
+                          ))}
+                        </ul>
+                      </div>
+                      <div>
+                        <h4 className="text-xs font-bold text-zinc-400 uppercase mb-3">Technical Exposure</h4>
+                        <div className="flex flex-wrap gap-2">
+                          {exp.tech?.map((t, i) => (
+                            <span key={i} className="text-xs font-medium px-2 py-1 bg-white border border-zinc-200 rounded">
+                              {t}
+                            </span>
+                          ))}
+                        </div>
                       </div>
                     </div>
-                  </div>
-                  <div className="bg-white p-6 border border-zinc-100 rounded-2xl">
-                    <h4 className="text-xs font-bold text-zinc-400 uppercase mb-3">Key Learning</h4>
-                    <p className="text-zinc-700 italic font-medium leading-relaxed">
-                      "{exp.learning}"
-                    </p>
+                    <div className="bg-white p-6 border border-zinc-100 rounded-2xl">
+                      <h4 className="text-xs font-bold text-zinc-400 uppercase mb-3">Key Learning</h4>
+                      <p className="text-zinc-700 italic font-medium leading-relaxed">
+                        "{exp.learning}"
+                      </p>
+                    </div>
                   </div>
                 </div>
-              </div>
+              )
             ))}
           </div>
         </div>
@@ -505,7 +519,7 @@ export default function App() {
               <Ship className="text-zinc-900 mb-6" size={32} />
               <h3 className="text-xl font-bold mb-6">Marine Systems</h3>
               <div className="flex flex-wrap gap-2">
-                {skills.marine.map(s => (
+                {skills?.marine?.map(s => (
                   <span key={s} className="px-3 py-1.5 bg-white rounded-lg text-sm font-medium text-zinc-600 border border-zinc-200">{s}</span>
                 ))}
               </div>
@@ -514,7 +528,7 @@ export default function App() {
               <Settings className="text-zinc-900 mb-6" size={32} />
               <h3 className="text-xl font-bold mb-6">Tools & Docs</h3>
               <div className="flex flex-wrap gap-2">
-                {skills.tools.map(s => (
+                {skills?.tools?.map(s => (
                   <span key={s} className="px-3 py-1.5 bg-white rounded-lg text-sm font-medium text-zinc-600 border border-zinc-200">{s}</span>
                 ))}
               </div>
@@ -528,29 +542,31 @@ export default function App() {
         <div className="max-w-7xl mx-auto px-6">
           <SectionTitle title="Problem Solving" subtitle="Troubleshooting Cases" />
           <div className="grid gap-8">
-            {cases.map((c, idx) => (
-              <div key={idx} className="bg-white p-10 rounded-3xl border border-zinc-100 shadow-sm">
-                <div className="flex items-center gap-4 mb-8">
-                  <div className="w-12 h-12 bg-zinc-900 rounded-2xl flex items-center justify-center text-white font-bold">
-                    {idx + 1}
+            {cases?.map((c, idx) => (
+              c && (
+                <div key={idx} className="bg-white p-10 rounded-3xl border border-zinc-100 shadow-sm">
+                  <div className="flex items-center gap-4 mb-8">
+                    <div className="w-12 h-12 bg-zinc-900 rounded-2xl flex items-center justify-center text-white font-bold">
+                      {idx + 1}
+                    </div>
+                    <h3 className="text-2xl font-bold">{c.title}</h3>
                   </div>
-                  <h3 className="text-2xl font-bold">{c.title}</h3>
+                  <div className="grid md:grid-cols-3 gap-12">
+                    <div>
+                      <h4 className="text-xs font-bold text-zinc-400 uppercase mb-3">Situation</h4>
+                      <p className="text-zinc-600 leading-relaxed">{c.situation}</p>
+                    </div>
+                    <div>
+                      <h4 className="text-xs font-bold text-zinc-400 uppercase mb-3">Action</h4>
+                      <p className="text-zinc-600 leading-relaxed">{c.action}</p>
+                    </div>
+                    <div>
+                      <h4 className="text-xs font-bold text-zinc-400 uppercase mb-3">Result</h4>
+                      <p className="text-zinc-900 font-bold leading-relaxed">{c.result}</p>
+                    </div>
+                  </div>
                 </div>
-                <div className="grid md:grid-cols-3 gap-12">
-                  <div>
-                    <h4 className="text-xs font-bold text-zinc-400 uppercase mb-3">Situation</h4>
-                    <p className="text-zinc-600 leading-relaxed">{c.situation}</p>
-                  </div>
-                  <div>
-                    <h4 className="text-xs font-bold text-zinc-400 uppercase mb-3">Action</h4>
-                    <p className="text-zinc-600 leading-relaxed">{c.action}</p>
-                  </div>
-                  <div>
-                    <h4 className="text-xs font-bold text-zinc-400 uppercase mb-3">Result</h4>
-                    <p className="text-zinc-900 font-bold leading-relaxed">{c.result}</p>
-                  </div>
-                </div>
-              </div>
+              )
             ))}
           </div>
         </div>
@@ -561,12 +577,14 @@ export default function App() {
         <div className="max-w-7xl mx-auto px-6">
           <SectionTitle title="Equipment Learning Log" subtitle="Continuous Growth" />
           <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-6">
-            {learningLogs.map((log, idx) => (
-              <div key={idx} className="group p-6 border border-zinc-100 rounded-2xl hover:border-zinc-900 transition-colors">
-                <BookOpen className="text-zinc-300 group-hover:text-zinc-900 mb-4 transition-colors" size={24} />
-                <h4 className="font-bold mb-2">{log.title}</h4>
-                <p className="text-sm text-zinc-500">{log.content}</p>
-              </div>
+            {learningLogs?.map((log, idx) => (
+              log && (
+                <div key={idx} className="group p-6 border border-zinc-100 rounded-2xl hover:border-zinc-900 transition-colors">
+                  <BookOpen className="text-zinc-300 group-hover:text-zinc-900 mb-4 transition-colors" size={24} />
+                  <h4 className="font-bold mb-2">{log.title}</h4>
+                  <p className="text-sm text-zinc-500">{log.content}</p>
+                </div>
+              )
             ))}
           </div>
         </div>
@@ -578,24 +596,28 @@ export default function App() {
           <div>
             <SectionTitle title="Education & Certs" />
             <div className="space-y-8">
-              {education.map((edu, idx) => (
-                <div key={idx} className="flex gap-4">
-                  <div className="w-px bg-zinc-200 relative">
-                    <div className="absolute top-0 left-1/2 -translate-x-1/2 w-2 h-2 rounded-full bg-zinc-900"></div>
+              {education?.map((edu, idx) => (
+                edu && (
+                  <div key={idx} className="flex gap-4">
+                    <div className="w-px bg-zinc-200 relative">
+                      <div className="absolute top-0 left-1/2 -translate-x-1/2 w-2 h-2 rounded-full bg-zinc-900"></div>
+                    </div>
+                    <div>
+                      <h4 className="font-bold">{edu.school}</h4>
+                      <p className="text-sm text-zinc-500">
+                        {edu.degree}{edu.degree && edu.status ? " • " : ""}{edu.status}
+                      </p>
+                    </div>
                   </div>
-                  <div>
-                    <h4 className="font-bold">{edu.school}</h4>
-                    <p className="text-sm text-zinc-500">
-                      {edu.degree}{edu.degree && edu.status ? " • " : ""}{edu.status}
-                    </p>
-                  </div>
-                </div>
+                )
               ))}
               <div className="flex flex-wrap gap-2 pt-4">
-                {certs.map(cert => (
-                  <span key={cert} className="px-3 py-1 bg-white border border-zinc-200 rounded-full text-xs font-bold text-zinc-600">
-                    {cert}
-                  </span>
+                {certs?.map(cert => (
+                  cert && (
+                    <span key={cert} className="px-3 py-1 bg-white border border-zinc-200 rounded-full text-xs font-bold text-zinc-600">
+                      {cert}
+                    </span>
+                  )
                 ))}
               </div>
             </div>
@@ -603,14 +625,16 @@ export default function App() {
           <div>
             <SectionTitle title="Activities" />
             <div className="space-y-6">
-              {activities.map((act, idx) => (
-                <div key={idx} className="bg-white p-6 rounded-2xl border border-zinc-100 flex justify-between items-center">
-                  <div>
-                    <h4 className="font-bold">{act.name}</h4>
-                    <p className="text-sm text-zinc-500">Focus: {act.focus}</p>
+              {activities?.map((act, idx) => (
+                act && (
+                  <div key={idx} className="bg-white p-6 rounded-2xl border border-zinc-100 flex justify-between items-center">
+                    <div>
+                      <h4 className="font-bold">{act.name}</h4>
+                      <p className="text-sm text-zinc-500">Focus: {act.focus}</p>
+                    </div>
+                    <ChevronRight className="text-zinc-300" size={20} />
                   </div>
-                  <ChevronRight className="text-zinc-300" size={20} />
-                </div>
+                )
               ))}
             </div>
           </div>
