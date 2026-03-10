@@ -18,7 +18,7 @@ db.exec(`
   )
 `);
 
-const initialContent = {
+const initialContent: Record<string, string> = {
   hero_name: "Kim Yeo-eun",
   hero_title: "Field Service Engineer Candidate",
   hero_subtitle: "Ship Operation Experience & Equipment Troubleshooting",
@@ -98,7 +98,20 @@ const initialContent = {
   resume_filename: ""
 };
 
-const insert = db.prepare("INSERT OR IGNORE INTO content (key, value) VALUES (?, ?)");
+// Try to load current content from file if it exists (e.g., when deploying to Vercel)
+const currentContentPath = path.resolve(__dirname, "current_content.json");
+if (fs.existsSync(currentContentPath)) {
+  try {
+    const fileData = fs.readFileSync(currentContentPath, "utf-8");
+    const fileContent = JSON.parse(fileData);
+    Object.assign(initialContent, fileContent);
+    console.log("Loaded content from current_content.json");
+  } catch (e) {
+    console.error("Error loading current_content.json:", e);
+  }
+}
+
+const insert = db.prepare("INSERT OR REPLACE INTO content (key, value) VALUES (?, ?)");
 for (const [key, value] of Object.entries(initialContent)) {
   insert.run(key, value);
 }
@@ -113,6 +126,19 @@ db.prepare("UPDATE content SET value = 'Kim Yeo-eun' WHERE key = 'hero_name' AND
 async function startServer() {
   const app = express();
   console.log("--- Server Starting ---");
+  
+  // Dump current content to file for AI to read
+  try {
+    const rows = db.prepare("SELECT * FROM content").all();
+    const content = rows.reduce((acc, row: any) => {
+      acc[row.key] = row.value;
+      return acc;
+    }, {} as any);
+    fs.writeFileSync("current_content.json", JSON.stringify(content, null, 2));
+    console.log("Current content dumped to current_content.json");
+  } catch (e) {
+    console.error("Error dumping content:", e);
+  }
   console.log("NODE_ENV:", process.env.NODE_ENV);
   console.log("Current working directory:", process.cwd());
   
@@ -141,6 +167,7 @@ async function startServer() {
       acc[row.key] = row.value;
       return acc;
     }, {} as any);
+    fs.writeFileSync("current_content.json", JSON.stringify(content, null, 2));
     res.json(content);
   });
 
@@ -177,6 +204,19 @@ async function startServer() {
     }
     // Use INSERT OR REPLACE to handle both new and existing keys
     db.prepare("INSERT OR REPLACE INTO content (key, value) VALUES (?, ?)").run(key, value);
+    
+    // Update current_content.json
+    try {
+      const rows = db.prepare("SELECT * FROM content").all();
+      const content = rows.reduce((acc, row: any) => {
+        acc[row.key] = row.value;
+        return acc;
+      }, {} as any);
+      fs.writeFileSync("current_content.json", JSON.stringify(content, null, 2));
+    } catch (e) {
+      console.error("Error updating current_content.json:", e);
+    }
+
     res.json({ success: true });
   });
 
